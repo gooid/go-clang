@@ -1,7 +1,12 @@
 package clang
 
 // #include <stdlib.h>
-// #include "go-clang.h"
+// #include "clang-c/Index.h"
+// inline static
+// CXCursor _go_clang_ocursor_at(CXCursor *c, int idx) {
+//   return c[idx];
+// }
+//
 import "C"
 
 // RefQualifierKind describes the kind of reference a Type is decorated with

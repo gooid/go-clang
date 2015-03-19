@@ -1,11 +1,11 @@
 package clang
 
 // #include <stdlib.h>
-// #include "go-clang.h"
+// #include "clang-c/Index.h"
+//
 import "C"
-import (
-	"fmt"
-)
+
+import "fmt"
 
 /**
  * \brief List the possible error codes for \c clang_Type_getSizeOf,
@@ -15,6 +15,7 @@ import (
  * A value of this enumeration type can be returned if the target type is not
  * a valid argument to sizeof, alignof or offsetof.
  */
+
 type TypeLayoutError int
 
 const (

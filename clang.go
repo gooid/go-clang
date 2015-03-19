@@ -1,7 +1,7 @@
 package clang
 
 // #include <stdlib.h>
-// #include "go-clang.h"
+// #include "clang-c/Index.h"
 import "C"
 
 import (

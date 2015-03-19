@@ -1,8 +1,11 @@
 package clang
 
 // #include <stdlib.h>
-// #include "go-clang.h"
+// #include "clang-c/Index.h"
+//
 import "C"
+
+import "fmt"
 
 // SourceLocation identifies a specific source location within a translation
 // unit.
@@ -23,7 +26,7 @@ func NewNullLocation() SourceLocation {
 // code.
 // Returns non-zero if the source locations refer to the same location, zero
 // if they refer to different locations.
-func EqualLocations(loc1, loc2 SourceLocation) bool {
+func (loc1 SourceLocation) IsEqual(loc2 SourceLocation) bool {
 	o := C.clang_equalLocations(loc1.c, loc2.c)
 	if o != C.uint(0) {
 		return true
@@ -75,8 +78,7 @@ func (l SourceLocation) ExpansionLocation() (f File, line, column, offset uint) 
 	cline := C.uint(0)
 	ccol := C.uint(0)
 	coff := C.uint(0)
-	// FIXME: undefined reference to `clang_getExpansionLocation'
-	C.clang_getInstantiationLocation(l.c, &f.c, &cline, &ccol, &coff)
+	C.clang_getExpansionLocation(l.c, &f.c, &cline, &ccol, &coff)
 	line = uint(cline)
 	column = uint(ccol)
 	offset = uint(coff)
@@ -234,4 +236,10 @@ func (loc SourceLocation) GetFileLocation() (f File, line, column, offset uint) 
 	offset = uint(coff)
 	return
 
+}
+
+// String
+func (loc SourceLocation) String() string {
+	f, line, column, offset := loc.GetFileLocation()
+	return fmt.Sprint(f.Name(), ":", line, ":", column, "(", offset, ")")
 }

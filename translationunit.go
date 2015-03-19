@@ -1,13 +1,14 @@
 package clang
 
 // #include <stdlib.h>
-// #include "go-clang.h"
+// #include "clang-c/Index.h"
+//
 import "C"
-import (
-	"unsafe"
-)
+import
 
 // A single translation unit, which resides in an index
+"unsafe"
+
 type TranslationUnit struct {
 	c C.CXTranslationUnit
 }
@@ -194,6 +195,43 @@ func (tu TranslationUnit) Reparse(us UnsavedFiles, options TranslationUnitFlags)
 }
 
 /**
+ * \brief Describes the kind of error that occurred (if any) in a call to
+ * \c clang_saveTranslationUnit().
+ */
+type SaveError int
+
+const (
+	/**
+	 * \brief Indicates that no error occurred while saving a translation unit.
+	 */
+	SaveError_None SaveError = C.CXSaveError_None
+
+	/**
+	 * \brief Indicates that an unknown error occurred while attempting to save
+	 * the file.
+	 *
+	 * This error typically indicates that file I/O failed when attempting to
+	 * write the file.
+	 */
+	SaveError_Unknown SaveError = C.CXSaveError_Unknown
+
+	/**
+	 * \brief Indicates that errors during translation prevented this attempt
+	 * to save the translation unit.
+	 *
+	 * Errors that prevent the translation unit from being saved can be
+	 * extracted using \c clang_getNumDiagnostics() and \c clang_getDiagnostic().
+	 */
+	SaveError_TranslationErrors SaveError = C.CXSaveError_TranslationErrors
+
+	/**
+	 * \brief Indicates that the translation unit to be saved was somehow
+	 * invalid (e.g., NULL).
+	 */
+	SaveError_InvalidTU SaveError = C.CXSaveError_InvalidTU
+)
+
+/**
  * \brief Saves a translation unit into a serialized representation of
  * that translation unit on disk.
  *
@@ -216,12 +254,11 @@ func (tu TranslationUnit) Reparse(us UnsavedFiles, options TranslationUnitFlags)
  * enumeration. Zero (CXSaveError_None) indicates that the translation unit was
  * saved successfully, while a non-zero value indicates that a problem occurred.
  */
-func (tu TranslationUnit) Save(fname string, options uint) uint32 {
+func (tu TranslationUnit) Save(fname string, options uint) SaveError {
 	cstr := C.CString(fname)
 	defer C.free(unsafe.Pointer(cstr))
 	o := C.clang_saveTranslationUnit(tu.c, cstr, C.uint(options))
-	// FIXME: should be a SaveError type...
-	return uint32(o)
+	return SaveError(o)
 }
 
 /**
@@ -281,27 +318,3 @@ func (tu TranslationUnit) NumTopLevelHeaders(m Module) int {
 func (tu TranslationUnit) TopLevelHeader(m Module, i int) File {
 	return File{C.clang_Module_getTopLevelHeader(tu.c, m.c, C.unsigned(i))}
 }
-
-// TODO
-//
-// /**
-//  * \brief Find #import/#include directives in a specific file.
-//  *
-//  * \param TU translation unit containing the file to query.
-//  *
-//  * \param file to search for #import/#include directives.
-//  *
-//  * \param visitor callback that will receive pairs of CXCursor/CXSourceRange for
-//  * each directive found.
-//  *
-//  * \returns one of the CXResult enumerators.
-//  */
-// CINDEX_LINKAGE CXResult clang_findIncludesInFile(CXTranslationUnit TU,
-//                                                  CXFile file,
-//                                               CXCursorAndRangeVisitor visitor);
-
-// TODO
-//
-// CINDEX_LINKAGE
-// CXResult clang_findIncludesInFileWithBlock(CXTranslationUnit, CXFile,
-//                                            CXCursorAndRangeVisitorBlock);

@@ -14,8 +14,6 @@
 #ifndef CLANG_CXSTRING_H
 #define CLANG_CXSTRING_H
 
-#include <stdint.h> /* go-clang: for uintptr_t */
-
 #include "clang-c/Platform.h"
 
 #ifdef __cplusplus
@@ -38,7 +36,7 @@ extern "C" {
  * with the string data, call \c clang_disposeString() to free the string.
  */
 typedef struct {
-  uintptr_t data;
+  const void *data;
   unsigned private_flags;
 } CXString;
 

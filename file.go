@@ -1,7 +1,8 @@
 package clang
 
 // #include <stdlib.h>
-// #include "go-clang.h"
+// #include "clang-c/Index.h"
+//
 import "C"
 
 import (
@@ -27,3 +28,5 @@ func (c File) ModTime() time.Time {
 	const nsec = 0
 	return time.Unix(int64(sec), nsec)
 }
+
+//

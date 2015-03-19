@@ -1,11 +1,10 @@
 package clang
 
-// #include "go-clang.h"
+// #include "clang-c/Index.h"
 import "C"
 
 import (
 	"fmt"
-	"reflect"
 	"unsafe"
 )
 
@@ -436,11 +435,13 @@ func (ccr CodeCompleteResults) IsValid() bool {
 
 // TODO(): is there a better way to handle this?
 func (ccr CodeCompleteResults) Results() (ret []CompletionResult) {
-	header := (*reflect.SliceHeader)((unsafe.Pointer(&ret)))
-	header.Cap = int(ccr.c.NumResults)
-	header.Len = int(ccr.c.NumResults)
-	header.Data = uintptr(unsafe.Pointer(ccr.c.Results))
-	return
+	//header := (*reflect.SliceHeader)((unsafe.Pointer(&ret)))
+	//header.Cap = int(ccr.c.NumResults)
+	//header.Len = int(ccr.c.NumResults)
+	//header.Data = uintptr(unsafe.Pointer(ccr.c.Results))
+	//return
+	return ((*[1 << 26]CompletionResult)(unsafe.Pointer(ccr.c.Results)))[:int(ccr.c.NumResults)]
+
 }
 
 /**

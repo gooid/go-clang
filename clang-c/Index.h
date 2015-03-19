@@ -17,7 +17,6 @@
 #define CLANG_C_INDEX_H
 
 #include <time.h>
-#include <stdint.h> /* go-clang: for uintptr_t */
 
 #include "clang-c/Platform.h"
 #include "clang-c/CXErrorCode.h"
@@ -361,7 +360,7 @@ CINDEX_LINKAGE CXFile clang_getFile(CXTranslationUnit tu,
  * to map a source location to a particular file, line, and column.
  */
 typedef struct {
-  uintptr_t ptr_data[2];
+  const void *ptr_data[2];
   unsigned int_data;
 } CXSourceLocation;
 
@@ -372,7 +371,7 @@ typedef struct {
  * starting and end locations from a source range, respectively.
  */
 typedef struct {
-  uintptr_t ptr_data[2];
+  const void *ptr_data[2];
   unsigned begin_int_data;
   unsigned end_int_data;
 } CXSourceRange;
@@ -1491,7 +1490,7 @@ typedef struct CXTUResourceUsageEntry {
   */
 typedef struct CXTUResourceUsage {
   /* \brief Private data member, used for queries. */
-  uintptr_t data;
+  void *data;
 
   /* \brief The number of entries in the 'entries' array. */
   unsigned numEntries;
@@ -2270,7 +2269,7 @@ enum CXCursorKind {
 typedef struct {
   enum CXCursorKind kind;
   int xdata;
-  uintptr_t data[3];
+  const void *data[3];
 } CXCursor;
 
 /**
@@ -2835,7 +2834,7 @@ enum CXCallingConv {
  */
 typedef struct {
   enum CXTypeKind kind;
-  uintptr_t data[2];
+  void *data[2];
 } CXType;
 
 /**
@@ -3893,7 +3892,7 @@ typedef enum CXTokenKind {
  */
 typedef struct {
   unsigned int_data[4];
-  uintptr_t ptr_data;
+  void *ptr_data;
 } CXToken;
 
 /**
@@ -4856,7 +4855,7 @@ enum CXVisitorResult {
 };
 
 typedef struct {
-  uintptr_t context;
+  void *context;
   enum CXVisitorResult (*visit)(void *context, CXCursor, CXSourceRange);
 } CXCursorAndRangeVisitor;
 
@@ -4953,7 +4952,7 @@ typedef void *CXIdxClientASTFile;
  * \brief Source location passed to index callbacks.
  */
 typedef struct {
-  uintptr_t ptr_data[2];
+  void *ptr_data[2];
   unsigned int_data;
 } CXIdxLoc;
 

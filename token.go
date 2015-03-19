@@ -1,11 +1,13 @@
 package clang
 
 // #include <stdlib.h>
-// #include "go-clang.h"
+// #include "clang-c/Index.h"
+//
 import "C"
 
 import (
 	"fmt"
+	"unsafe"
 )
 
 // TokenKind describes a kind of token
@@ -57,7 +59,8 @@ func (tk TokenKind) String() string {
 
 // Token is a single preprocessing token.
 type Token struct {
-	c C.CXToken
+	c  C.CXToken
+	tu C.CXTranslationUnit
 }
 
 // Kind determines the kind of this token
@@ -72,8 +75,8 @@ func (t Token) Kind() TokenKind {
  * The spelling of a token is the textual representation of that token, e.g.,
  * the text of an identifier or keyword.
  */
-func (tu TranslationUnit) TokenSpelling(tok Token) string {
-	cstr := cxstring{C.clang_getTokenSpelling(tu.c, tok.c)}
+func (t Token) Spelling() string {
+	cstr := cxstring{C.clang_getTokenSpelling(t.tu, t.c)}
 	defer cstr.Dispose()
 	return cstr.String()
 }
@@ -81,16 +84,16 @@ func (tu TranslationUnit) TokenSpelling(tok Token) string {
 /**
  * \brief Retrieve the source location of the given token.
  */
-func (tu TranslationUnit) TokenLocation(tok Token) SourceLocation {
-	o := C.clang_getTokenLocation(tu.c, tok.c)
+func (t Token) Location() SourceLocation {
+	o := C.clang_getTokenLocation(t.tu, t.c)
 	return SourceLocation{o}
 }
 
 /**
  * \brief Retrieve a source range that covers the given token.
  */
-func (tu TranslationUnit) TokenExtent(tok Token) SourceRange {
-	o := C.clang_getTokenExtent(tu.c, tok.c)
+func (t Token) Extent() SourceRange {
+	o := C.clang_getTokenExtent(t.tu, t.c)
 	return SourceRange{o}
 }
 
@@ -114,15 +117,42 @@ func (tu TranslationUnit) TokenExtent(tok Token) SourceRange {
 func Tokenize(tu TranslationUnit, src SourceRange) Tokens {
 	tokens := Tokens{}
 	tokens.tu = tu.c
-	C.clang_tokenize(tu.c, src.c, &tokens.c, &tokens.n)
+	var c *C.CXToken
+	var n C.uint
+
+	C.clang_tokenize(tu.c, src.c, &c, &n)
+	if unsafe.Pointer(c) != nil {
+		tokens.c = (*[1 << 26]C.CXToken)(unsafe.Pointer(c))[:n]
+	}
 	return tokens
+}
+
+func (c Cursor) Tokenize() Tokens {
+	return Tokenize(c.TranslationUnit(), c.Extent())
+}
+
+func (c Cursor) Tokens() (ts []Token) {
+	e := c.Extent()
+	tokens := Tokenize(c.TranslationUnit(), e)
+	if len(tokens.c) == 0 {
+		return
+	}
+
+	for i := 0; i < tokens.Count(); i++ {
+		t := tokens.token(i)
+		if t.Extent().IsInside(e) {
+			ts = append(ts, *t)
+		}
+	}
+	tokens.Dispose()
+	return
 }
 
 // an array of tokens
 type Tokens struct {
 	tu C.CXTranslationUnit
-	c  *C.CXToken
-	n  C.uint
+	c  []C.CXToken
+	//n  C.uint
 }
 
 /**
@@ -156,14 +186,15 @@ type Tokens struct {
  * replaced with the cursors corresponding to each token.
  */
 func (t Tokens) Annotate() []Cursor {
-	cursors := make([]Cursor, int(t.n))
-	if t.n <= 0 {
+	n := len(t.c)
+	cursors := make([]Cursor, n)
+	if n <= 0 {
 		return cursors
 	}
-	c_cursors := make([]C.CXCursor, int(t.n))
-	C.clang_annotateTokens(t.tu, t.c, t.n, &c_cursors[0])
+	c_cursors := make([]C.CXCursor, int(n))
+	C.clang_annotateTokens(t.tu, &t.c[0], C.uint(n), &c_cursors[0])
 	for i, _ := range cursors {
-		cursors[i] = Cursor{C._go_clang_ocursor_at(&c_cursors[0], C.int(i))}
+		cursors[i] = Cursor{c_cursors[i]}
 	}
 	return cursors
 }
@@ -172,7 +203,18 @@ func (t Tokens) Annotate() []Cursor {
  * \brief Free the given set of tokens.
  */
 func (t Tokens) Dispose() {
-	C.clang_disposeTokens(t.tu, t.c, t.n)
+	C.clang_disposeTokens(t.tu, &t.c[0], C.uint(len(t.c)))
+}
+
+func (t Tokens) Count() int {
+	return len(t.c)
+}
+
+func (t Tokens) token(idx int) *Token {
+	if idx >= len(t.c) {
+		return nil
+	}
+	return &Token{c: t.c[idx], tu: t.tu}
 }
 
 // EOF

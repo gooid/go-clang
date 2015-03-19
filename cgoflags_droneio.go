@@ -2,5 +2,6 @@
 
 package clang
 
-// #cgo linux LDFLAGS: -L/usr/lib/llvm-3.5/lib
+// #cgo linux CFLAGS: -I/usr/lib/llvm-3.4/include
+// #cgo linux LDFLAGS: -L/usr/lib/llvm-3.4/lib
 import "C"

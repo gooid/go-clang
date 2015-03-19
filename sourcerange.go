@@ -1,8 +1,11 @@
 package clang
 
 // #include <stdlib.h>
-// #include "go-clang.h"
+// #include "clang-c/Index.h"
+//
 import "C"
+
+import "fmt"
 
 // SourceRange identifies a half-open character range in the source code.
 //
@@ -25,7 +28,7 @@ func NewRange(beg, end SourceLocation) SourceRange {
 }
 
 // EqualRanges determines whether two ranges are equivalent.
-func EqualRanges(r1, r2 SourceRange) bool {
+func (r1 SourceRange) IsEqual(r2 SourceRange) bool {
 	o := C.clang_equalRanges(r1.c, r2.c)
 	if o != C.uint(0) {
 		return true
@@ -58,4 +61,56 @@ func (s SourceRange) Start() SourceLocation {
 func (s SourceRange) End() SourceLocation {
 	o := C.clang_getRangeEnd(s.c)
 	return SourceLocation{o}
+}
+
+// Intersect
+func (s SourceRange) intersect(i SourceRange) SourceRange {
+	fS, _, _, offsetS := s.Start().GetFileLocation()
+	fI, _, _, offsetI := i.Start().GetFileLocation()
+	if fS.Name() == fI.Name() {
+
+		var sl, el SourceLocation
+
+		start := offsetS
+		if start < offsetI {
+			start = offsetI
+			sl = i.Start()
+		} else {
+			sl = s.Start()
+		}
+
+		fS, _, _, offsetS = s.End().GetFileLocation()
+		fI, _, _, offsetI = i.End().GetFileLocation()
+		if fS.Name() == fI.Name() {
+
+			end := offsetS
+			if end > offsetI {
+				end = offsetI
+				el = i.End()
+			} else {
+				el = s.End()
+			}
+
+			if start < end {
+				return NewRange(sl, el)
+			}
+		}
+	}
+	return NewNullRange()
+}
+
+// IsInside
+func (s SourceRange) IsInside(e SourceRange) bool {
+	return s.intersect(e).IsEqual(s)
+}
+
+// String
+func (s SourceRange) String() string {
+	if s.IsNull() {
+		return "null"
+	}
+	f, line, column, offset := s.Start().GetFileLocation()
+	str := fmt.Sprint(f.Name(), ":", line, ":", column, "(", offset, ")")
+	_, line, column, offset = s.End().GetFileLocation()
+	return str + fmt.Sprint(" - :", line, ":", column, "(", offset, ")")
 }

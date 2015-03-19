@@ -15,7 +15,6 @@
 #ifndef CLANG_C_DOCUMENTATION_H
 #define CLANG_C_DOCUMENTATION_H
 
-#include <stdint.h> /* go-clang: for uintptr_t */
 #include "clang-c/Index.h"
 
 #ifdef __cplusplus
@@ -36,7 +35,7 @@ extern "C" {
  * \brief A parsed comment.
  */
 typedef struct {
-  uintptr_t ASTNode;
+  const void *ASTNode;
   CXTranslationUnit TranslationUnit;
 } CXComment;
 

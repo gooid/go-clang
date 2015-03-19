@@ -1,7 +1,9 @@
 package clang
 
 // #include <stdlib.h>
-// #include "go-clang.h"
+// #include "clang-c/Index.h"
+// extern unsigned int goClangCursorVisitor(CXCursor p0, CXCursor p1, void* p2);
+//
 import "C"
 import (
 	"unsafe"
@@ -35,8 +37,8 @@ func NewNullCursor() Cursor {
 }
 
 // Determine whether two cursors are equivalent
-func EqualCursors(c1, c2 Cursor) bool {
-	o := C.clang_equalCursors(c1.c, c2.c)
+func (c Cursor) IsEqual(c2 Cursor) bool {
+	o := C.clang_equalCursors(c.c, c2.c)
 	if o != C.uint(0) {
 		return true
 	}
@@ -294,7 +296,7 @@ func (c Cursor) PlatformAvailability(availability []PlatformAvailability) (alway
 
 	availability = make([]PlatformAvailability, nn)
 	for i := 0; i < nn; i++ {
-		availability[i] = PlatformAvailability{C._goclang_get_platform_availability_at(&c_platforms[0], C.int(i))}
+		availability[i] = PlatformAvailability{c_platforms[i]}
 	}
 
 	return
@@ -485,30 +487,32 @@ func (c Cursor) LexicalParent() Cursor {
  * array pointed to by \p overridden.
  */
 func (c Cursor) OverriddenCursors() (o OverriddenCursors) {
-	C.clang_getOverriddenCursors(c.c, &o.c, &o.n)
-
+	var n C.uint
+	var cc *C.CXCursor
+	C.clang_getOverriddenCursors(c.c, &cc, &n)
+	o.c = (*[1 << 26]C.CXCursor)(unsafe.Pointer(cc))[:n]
 	return o
 }
 
 type OverriddenCursors struct {
-	c *C.CXCursor
-	n C.uint
+	c []C.CXCursor
+	//n C.uint
 }
 
 // Dispose frees the set of overridden cursors
 func (c OverriddenCursors) Dispose() {
-	C.clang_disposeOverriddenCursors(c.c)
+	C.clang_disposeOverriddenCursors(&c.c[0])
 }
 
 func (c OverriddenCursors) Len() int {
-	return int(c.n)
+	return len(c.c)
 }
 
 func (c OverriddenCursors) At(i int) Cursor {
-	if i >= int(c.n) {
+	if i >= len(c.c) {
 		panic("clang: index out of range")
 	}
-	return Cursor{C._go_clang_ocursor_at(c.c, C.int(i))}
+	return Cursor{c.c[i]}
 }
 
 // IncludedFile returns the file that is included by the given inclusion directive
@@ -794,22 +798,16 @@ type CursorVisitor func(cursor, parent Cursor) (status ChildVisitResult)
  * prematurely by the visitor returning \c CXChildVisit_Break.
  */
 func (c Cursor) Visit(visitor CursorVisitor) bool {
-	forceEscapeVisitor = &visitor
-	o := C._go_clang_visit_children(c.c, unsafe.Pointer(&visitor))
+	o := C.clang_visitChildren(c.c, (C.CXCursorVisitor)(C.goClangCursorVisitor), (C.CXClientData)(unsafe.Pointer(&visitor)))
+	//o := C._go_clang_visit_children(c.c, unsafe.Pointer(&visitor))
 	if o != C.uint(0) {
 		return false
 	}
 	return true
 }
 
-// forceEscapeVisitor is write-only: to force compiler to escape the address
-// (else the address can become stale if the goroutine stack needs to grow
-// and is forced to move)
-// Explained by rsc in https://golang.org/issue/9125
-var forceEscapeVisitor *CursorVisitor
-
-//export GoClangCursorVisitor
-func GoClangCursorVisitor(cursor, parent C.CXCursor, cfct unsafe.Pointer) (status ChildVisitResult) {
+//export goClangCursorVisitor
+func goClangCursorVisitor(cursor, parent C.CXCursor, cfct unsafe.Pointer) (status ChildVisitResult) {
 	fct := *(*CursorVisitor)(cfct)
 	o := fct(Cursor{cursor}, Cursor{parent})
 	return o
@@ -1237,30 +1235,49 @@ const (
 	NR_WantSinglePiece = C.CXNameRange_WantSinglePiece
 )
 
-// TODO
-//
-// /**
-//  * \brief Find references of a declaration in a specific file.
-//  *
-//  * \param cursor pointing to a declaration or a reference of one.
-//  *
-//  * \param file to search for references.
-//  *
-//  * \param visitor callback that will receive pairs of CXCursor/CXSourceRange for
-//  * each reference found.
-//  * The CXSourceRange will point inside the file; if the reference is inside
-//  * a macro (and not a macro argument) the CXSourceRange will be invalid.
-//  *
-//  * \returns one of the CXResult enumerators.
-//  */
-// func (c Cursor) FindReferencesInFile(f File, visitor CursorAndRangeVisitor) Result {
-// 	return Result(C.clang_findReferencesInFile(c.c, f.c, visitor.c))
-// }
+/**
+ * \brief Find references of a declaration in a specific file.
+ *
+ * \param cursor pointing to a declaration or a reference of one.
+ *
+ * \param file to search for references.
+ *
+ * \param visitor callback that will receive pairs of CXCursor/CXSourceRange for
+ * each reference found.
+ * The CXSourceRange will point inside the file; if the reference is inside
+ * a macro (and not a macro argument) the CXSourceRange will be invalid.
+ *
+ * \returns one of the CXResult enumerators.
+ */
+func (c Cursor) FindReferencesInFile(f File, visitor FindVisitor,
+	context interface{}) Result {
+	visit := findVisitorToCursorAndRangeVisitor(context, visitor)
+	return Result(C.clang_findReferencesInFile(c.c, f.c, visit))
+}
 
-// TODO
-//
-// CINDEX_LINKAGE
-// CXResult clang_findReferencesInFileWithBlock(CXCursor, CXFile,
-//                                              CXCursorAndRangeVisitorBlock);
+/**
+ * \brief Find #import/#include directives in a specific file.
+ *
+ * \param TU translation unit containing the file to query.
+ *
+ * \param file to search for #import/#include directives.
+ *
+ * \param visitor callback that will receive pairs of CXCursor/CXSourceRange for
+ * each directive found.
+ *
+ * \returns one of the CXResult enumerators.
+ */
+func (tu TranslationUnit) FindIncludesInFile(f File,
+	visitor FindVisitor, context interface{}) Result {
+	visit := findVisitorToCursorAndRangeVisitor(context, visitor)
+	return Result(C.clang_findIncludesInFile(tu.c, f.c, visit))
+}
+
+func (tu TranslationUnit) FindIncludesInFileName(fname string,
+	visitor FindVisitor, context interface{}) Result {
+	f := tu.File(fname)
+	visit := findVisitorToCursorAndRangeVisitor(context, visitor)
+	return Result(C.clang_findIncludesInFile(tu.c, f.c, visit))
+}
 
 // EOF

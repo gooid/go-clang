@@ -1,7 +1,12 @@
 package clang
 
 // #include <stdlib.h>
-// #include "go-clang.h"
+// #include "clang-c/Index.h"
+// inline static
+// CXCursor _go_clang_ocursor_at(CXCursor *c, int idx) {
+//   return c[idx];
+// }
+//
 import "C"
 
 import (
@@ -18,7 +23,7 @@ func (c Type) Kind() TypeKind {
 }
 
 // EqualTypes determines whether two Types represent the same type.
-func EqualTypes(t1, t2 Type) bool {
+func (t1 Type) IsEqual(t2 Type) bool {
 	o := C.clang_equalTypes(t1.c, t2.c)
 	if o != C.uint(0) {
 		return true
